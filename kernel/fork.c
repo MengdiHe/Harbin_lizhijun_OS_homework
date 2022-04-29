@@ -18,6 +18,7 @@
 #include <asm/system.h>
 
 extern void write_verify(unsigned long address);
+extern void first_return_from_kernel(void);
 
 long last_pid=0;
 
@@ -91,6 +92,7 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->cutime = p->cstime = 0;
 	p->start_time = jiffies;
     fprintk(3, "%d\tN\t%d\n", p->pid, jiffies);
+    /*
 	p->tss.back_link = 0;
 	p->tss.esp0 = PAGE_SIZE + (long) p;
 	p->tss.ss0 = 0x10;
@@ -112,8 +114,46 @@ int copy_process(int nr,long ebp,long edi,long esi,long gs,long none,
 	p->tss.gs = gs & 0xffff;
 	p->tss.ldt = _LDT(nr);
 	p->tss.trace_bitmap = 0x80000000;
+    */
 	if (last_task_used_math == current)
 		__asm__("clts ; fnsave %0"::"m" (p->tss.i387));
+
+    long *krnstack;
+    krnstack = (long)(PAGE_SIZE + (long)p);
+
+    //setup kernel stack
+    *(--krnstack) = ss & 0xffff;
+    *(--krnstack) = esp;
+    *(--krnstack) = eflags;
+    *(--krnstack) = cs & 0xffff;
+    *(--krnstack) = eip;
+
+    *(--krnstack) = ds & 0xffff;
+    *(--krnstack) = es & 0xffff;
+    *(--krnstack) = fs & 0xffff;
+    *(--krnstack) = gs & 0xffff;
+    *(--krnstack) = esi;
+    *(--krnstack) = edi;
+    *(--krnstack) = edx;
+
+    /*
+     * this address will be called by the ret at the end of switch to
+     * Of course, we can let child process excute the same instruction with parent.
+     * But here we just need to recover the register and use iret to go back to user mode
+     * quickly. So we can write a new program to do this.
+     */
+    *(--krnstack) = (long) first_return_from_kernel;
+
+    /*When this new process is been scheduled, switch_to will finally
+    *popl eax ebx ecx ebp, and then ret.So we must setup krnstack in this order
+    */
+    *(--krnstack) = ebp;
+    *(--krnstack) = ecx;
+    *(--krnstack) = ebx;
+    *(--krnstack) = 0; // eax will be used as return value for fork, so child process set to 0
+
+    p->kernelstack = krnstack;
+
 	if (copy_mem(nr,p)) {
 		task[nr] = NULL;
 		free_page((long) p);

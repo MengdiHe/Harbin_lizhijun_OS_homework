@@ -23,6 +23,8 @@
 #define _S(nr) (1<<((nr)-1))
 #define _BLOCKABLE (~(_S(SIGKILL) | _S(SIGSTOP)))
 
+extern long switch_to(struct task_struct *p, unsigned long address);
+
 void show_task(int nr,struct task_struct * p)
 {
 	int i,j = 4096-sizeof(struct task_struct);
@@ -63,6 +65,7 @@ struct task_struct *current = &(init_task.task);
 struct task_struct *last_task_used_math = NULL;
 
 struct task_struct * task[NR_TASKS] = {&(init_task.task), };
+struct tss_struct *tss = &(init_task.task.tss);
 
 long user_stack [ PAGE_SIZE>>2 ] ;
 
@@ -105,6 +108,7 @@ void schedule(void)
 {
 	int i,next,c;
 	struct task_struct ** p;
+    struct task_struct *pnext = &(init_task.task);
 
 /* check alarm, wake up any interruptible tasks that have got a signal */
 
@@ -132,7 +136,7 @@ void schedule(void)
 			if (!*--p)
 				continue;
 			if ((*p)->state == TASK_RUNNING && (*p)->counter > c)
-				c = (*p)->counter, next = i;
+				c = (*p)->counter, next = i, pnext = *p;
 		}
 		if (c) break;
 		for(p = &LAST_TASK ; p > &FIRST_TASK ; --p)
@@ -152,7 +156,7 @@ void schedule(void)
             fprintk(3, "%d\tJ\t%d\n", current->pid, jiffies);
         fprintk(3, "%d\tR\t%d\n", task[next]->pid, jiffies);
     }
-	switch_to(next);
+	switch_to(pnext, _LDT(next));
 }
 
 int sys_pause(void)
