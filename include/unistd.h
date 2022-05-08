@@ -133,6 +133,8 @@
 #define __NR_sem_wait 73
 #define __NR_sem_post 74
 #define __NR_sem_unlink 75
+#define __NR_shmget 76
+#define __NR_shmat 77
 
 #define _syscall0(type,name) \
 type name(void) \
@@ -264,5 +266,7 @@ sem_t *sem_open(const char *name, unsigned int value);
 int sem_wait(sem_t *sem);
 int sem_post(sem_t *sem);
 int sem_unlink(const char *name);
+int sys_shmget(unsigned int key, size_t size);
+void* sys_shmat(int shmid);
 
 #endif
