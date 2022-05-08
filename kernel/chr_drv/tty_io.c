@@ -348,3 +348,9 @@ void do_tty_interrupt(int tty)
 void chr_dev_init(void)
 {
 }
+
+int switch_show_char_flag = 0;
+void press_f12_handle(void)
+{
+    switch_show_char_flag = 1 - switch_show_char_flag;
+}
